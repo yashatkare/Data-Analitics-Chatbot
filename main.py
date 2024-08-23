@@ -18,7 +18,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-llm = OpenAI(api_token="sk-proj-abHkjRmhthPclRybI1rGT3BlbkFJ8Z9CsIJZVVp9XpKIdME2")
+# get api key
+api = os.environ.get('OPENAI_API_KEY')
+llm = OpenAI(api)
 global_df = None
 
 @app.post("/uploadfile/")
@@ -66,13 +68,6 @@ async def query_data(query: str):
             return JSONResponse(content={"result": result_json})
         # if result contain os-path
         elif isinstance(result, str) and os.path.exists(result):
-            # rename image name
-            # import random
-            # NEW_NAME = F'chart-{random.randint(1000, 9999)}.png'
-            # image_name = os.path.basename(result)
-            # new_image_path = os.path.join('exports/charts', NEW_NAME)
-            # os.rename(result, new_image_path)
-            # result = new_image_path
 
             image_path = result
             return JSONResponse(content={"result": result, "image_path": image_path})
