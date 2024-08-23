@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel File Upload and Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        .container {
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .upload-section, .chat-section {
+            flex: 1;
+            padding: 20px;
+        }
+        .upload-section {
+            max-width: 300px;
+            border-right: 1px solid #ddd;
+        }
+        .chat-section {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chat-box {
+            max-height: calc(100vh - 160px);
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin-bottom: 15px;
+        }
+        .message.user {
+            text-align: right;
+        }
+        .message.bot {
+            text-align: left;
+        }
+        .message p {
+            margin: 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .message.user p {
+            background-color: #007bff;
+            color: #fff;
+        }
+        .message.bot p {
+            background-color: #e9ecef;
+        }
+        .table-wrapper {
+            overflow-x: auto; /* Allow horizontal scroll only for the table */
+            max-width: 100%;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem; /* Smaller font size */
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #ddd;
+            white-space: nowrap; /* Prevents text from wrapping */
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="upload-section">
+            <h5>Upload Files</h5>
+            <form id="upload-form" class="mb-3">
+                <div class="mb-3">
+                    <input type="file" class="form-control" id="file-input" accept=".xlsx, .xls, .csv">
+                </div>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </form>
+        </div>
+        <div class="chat-section">
+            <div class="card" id="chat2" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <div class="card-header d-flex justify-content-between align-items-center p-3">
+                    <h5 class="mb-0">Chat</h5>
+                    <button type="button" class="btn btn-primary btn-sm" data-mdb-ripple-color="dark">Let's Chat App</button>
+                </div>
+                <div class="card-body" id="chat-box" style="position: relative;">
+                    <!-- Messages will be appended here -->
+                    <div id="output"></div>
+                </div>
+                <div class="card-footer text-muted d-flex justify-content-start align-items-center p-3">
+                    <img src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3-bg.webp" alt="avatar 3" style="width: 40px; height: 100%;">
+                    <input type="text" class="form-control form-control-lg" id="query-input" placeholder="Type message">
+                    <button id="send-button" class="btn btn-primary ms-3"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/uploadfile/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                appendMessage('bot', `File uploaded successfully.`);
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('bot', `Error: ${error.message}`);
+            }
+        });
+
+        document.getElementById('send-button').addEventListener('click', async () => {
+            const queryInput = document.getElementById('query-input');
+            const query = queryInput.value;
+
+            appendMessage('user', query);
+            queryInput.value = '';
+
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/query/?query=${encodeURIComponent(query)}`, {
+                    method: 'GET',
+                });
+                
+                const result = await response.json();
+                
+                console.log("result: ", result);
+                if (Array.isArray(result.result)) {
+                    // Create a table from the JSON data
+                    console.log(result.result);
+                    let tableHtml = '<div class="table-wrapper"><table class="table"><thead><tr>';
+                    // Add headers
+                    Object.keys(result.result[0]).forEach(key => {
+                        tableHtml += `<th>${key}</th>`;
+                    });
+                    tableHtml += '</tr></thead><tbody>';
+                    // Add rows
+                    result.result.forEach(row => {
+                        tableHtml += '<tr>';
+                        Object.values(row).forEach(value => {
+                            tableHtml += `<td>${value}</td>`;
+                        });
+                        tableHtml += '</tr>';
+                    });
+                    tableHtml += '</tbody></table></div>';
+
+                    appendMessage('bot', tableHtml);
+                } else if (result.image_path) {
+                    const imageUrl = `http://127.0.0.1:8000/image/${result.image_path.split('/').pop()}`;
+                    const imageMessage = `<img src="${imageUrl}" class="img-fluid" style="max-width: 100%;">`;
+                    appendMessage('bot', imageMessage);
+                } else {
+                    appendMessage('bot', JSON.stringify(result.result, null, 2));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('bot', `Error: ${error.message}`);
+            }
+        });
+
+        function appendMessage(sender, message) {
+            const chatBox = document.getElementById('chat-box');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+            messageDiv.innerHTML = `<p>${message}</p>`;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
+</body>
+</html>
